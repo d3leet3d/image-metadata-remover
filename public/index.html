@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Metadata Stripper</title>
+</head>
+<body>
+    <h1 id = "name-t">Image Metadata Strippers</h1>
+    <form action="" method="post" enctype="multipart/form-data" id="upload-form">
+        <input type="file" name="image" accept=".jpg, .jpeg, .png" required>
+        <button type="submit">Upload and Strip Metadata</button>
+    </form>
+    <div id="result">
+        <!-- Placeholder for the stripped image -->
+        <img id="stripped-image" style="display: none;">
+    </div>
+
+    <!-- JavaScript to handle the image upload form -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const uploadForm = document.getElementById('upload-form');
+            const header = document.getElementById('name-t')
+            
+            // Fetch the environment variable value from the server
+            fetch('/get-port')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.port) {
+                        const port = data.port;
+                        uploadForm.action = `http://localhost:${port}/strip-metadata`;
+                        header.innerHTML = `http://localhost:${port}`
+
+                        uploadForm.addEventListener('submit', async function (e) {
+                            e.preventDefault(); // Prevent the form submission
+
+                            const formData = new FormData(this);
+
+                            try {
+                                const response = await fetch(uploadForm.action, {
+                                    method: 'POST',
+                                    body: formData
+                                });
+
+                                if (response.ok) {
+                                    const blob = await response.blob();
+                                    const imageUrl = URL.createObjectURL(blob);
+
+                                    // Display the stripped image
+                                    const strippedImage = document.getElementById('stripped-image');
+                                    strippedImage.style.display = 'block';
+                                    strippedImage.src = imageUrl;
+                                } else {
+                                    console.error('Error stripping metadata:', response.statusText);
+                                }
+                            } catch (error) {
+                                console.error('Error stripping metadata:', error);
+                            }
+                        });
+                    } else {
+                        console.error('Error fetching port from server:', data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching port from server:', error);
+                });
+        });
+    </script>
+</body>
+</html>
