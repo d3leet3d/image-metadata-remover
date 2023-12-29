@@ -3,67 +3,113 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Metadata Stripper</title>
+    <title>Image Metadata Remover</title>
 </head>
 <body>
-    <h1 id = "name-t">Image Metadata Strippers</h1>
-    <form action="" method="post" enctype="multipart/form-data" id="upload-form">
-        <input type="file" name="image" accept=".jpg, .jpeg, .png" required>
-        <button type="submit">Upload and Strip Metadata</button>
+    <h1>Image Metadata Remover</h1>
+    <form action="/strip-metadata" method="post" enctype="multipart/form-data" id="upload-form">
+        <input type="file" name="image[]" accept=".jpg, .jpeg, .png" multiple required>
+        <button type="submit">Upload and Remove Metadata</button>
+        <button id="save-images">Save All Images (ZIP)</button>
     </form>
     <div id="result">
-        <!-- Placeholder for the stripped image -->
-        <img id="stripped-image" style="display: none;">
+        <!-- Placeholder for the stripped images -->
     </div>
 
-    <!-- JavaScript to handle the image upload form -->
+    <!-- Button to save all images as a ZIP file -->
+
+    <!-- JavaScript to handle the image display and saving -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.6.0/jszip.min.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const uploadForm = document.getElementById('upload-form');
-            const header = document.getElementById('name-t')
-            
-            // Fetch the environment variable value from the server
-            fetch('/get-port')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.port) {
-                        const port = data.port;
-                        uploadForm.action = `http://localhost:${port}/strip-metadata`;
-                        header.innerHTML = `http://localhost:${port}`
-
-                        uploadForm.addEventListener('submit', async function (e) {
-                            e.preventDefault(); // Prevent the form submission
-
-                            const formData = new FormData(this);
-
-                            try {
-                                const response = await fetch(uploadForm.action, {
-                                    method: 'POST',
-                                    body: formData
-                                });
-
-                                if (response.ok) {
-                                    const blob = await response.blob();
-                                    const imageUrl = URL.createObjectURL(blob);
-
-                                    // Display the stripped image
-                                    const strippedImage = document.getElementById('stripped-image');
-                                    strippedImage.style.display = 'block';
-                                    strippedImage.src = imageUrl;
-                                } else {
-                                    console.error('Error stripping metadata:', response.statusText);
-                                }
-                            } catch (error) {
-                                console.error('Error stripping metadata:', error);
-                            }
-                        });
-                    } else {
-                        console.error('Error fetching port from server:', data.error);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching port from server:', error);
+        let strippedImageUrls = [];
+    
+        document.getElementById('upload-form').addEventListener('submit', async function (e) {
+            e.preventDefault(); // Prevent the form submission
+    
+            const formData = new FormData(this);
+    
+            try {
+                const response = await fetch('/strip-metadata', {
+                    method: 'POST',
+                    body: formData
                 });
+    
+                if (response.ok) {
+                    strippedImageUrls = await response.json();
+    
+                    // Clear previous images
+                    const resultDiv = document.getElementById('result');
+                    resultDiv.innerHTML = '';
+    
+                    // Create and display an image element for each stripped image
+                    strippedImageUrls.forEach(imageUrl => {
+                        const strippedImage = document.createElement('img');
+                        strippedImage.src = imageUrl;
+    
+                        resultDiv.appendChild(strippedImage);
+                    });
+                } else {
+                    console.error('Error stripping metadata:', response.statusText);
+                }
+            } catch (error) {
+                console.error('Error stripping metadata:', error);
+            }
+        });
+    
+        // Function to generate a formatted date string
+        function getFormattedDate() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = (now.getMonth() + 1).toString().padStart(2, '0'); // Month is zero-based
+            const day = now.getDate().toString().padStart(2, '0');
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            const seconds = now.getSeconds().toString().padStart(2, '0');
+    
+            return `${year}-${month}-${day}`;
+        }
+        function getRandomString(length) {
+        const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let result = '';
+        for (let i = 0; i < length; i++) {
+            result += characters.charAt(Math.floor(Math.random() * characters.length));
+        }
+        return result;
+    }
+        // Button click event to save all images as a ZIP file
+        document.getElementById('save-images').addEventListener('click', async () => {
+            const fetchPromises = [];
+            strippedImageUrls.forEach(async (imageUrl, index) => {
+                const fetchPromise = fetch(imageUrl).then(response => response.blob());
+                fetchPromises.push(fetchPromise);
+            });
+
+            if(!fetchPromises.length>=1){
+                alert("No images uploaded")
+                return
+            }
+    
+            try {
+                const imageBlobs = await Promise.all(fetchPromises);
+                const zip = new JSZip();
+                const formattedDate = getFormattedDate();
+    
+                imageBlobs.forEach((blob, index) => {
+                    zip.file(`${getRandomString(10)}.png`, blob);
+                });
+    
+                // Generate the ZIP file and trigger the download
+                zip.generateAsync({ type: 'blob' }).then((zipBlob) => {
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(zipBlob);
+                    link.download = `stripped_images_${getRandomString(10)}_${getFormattedDate()}.zip`;
+    
+                    // Simulate a click on the link to trigger the download
+                    link.click();
+                });
+            } catch (error) {
+                console.error('Error fetching images:', error);
+            }
         });
     </script>
 </body>
